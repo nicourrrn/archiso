@@ -5,6 +5,7 @@ set base_packages "base" "base-devel" "booster" "neovim" "iwd" "efibootmgr"  \
     "gvfs" "gvfs-mtp" "xdg-user-dirs" "linux" "linux-firmware" "dhcpcd" "limine" \
     "btrfs-progs" "openssh" "git" "reflector" "amd-ucode" "fish"
 
+set kernels "linux"
 
 function install_arch -a mnt
     reflector --verbose --country UA --latest 5 --sort rate --save /etc/pacman.d/mirrorlist
@@ -59,14 +60,55 @@ function setup_service
     systemctl enable fail2ban.service
 end
 
-function setup_kernel
-   echo "Only booster setting here"
-   echo "modules: nvidia
-   compression: zstd
-   extra_files: nvim
-   vconsole: true
-   universal: false
-   " >> /etc/booster.yaml
+function setup_kernel -a disk part
+
+    set root_partiton (findmnt -nnro SOURCE /)
+    set boot_partiton (findmnt -nnro SOURCE /boot)
+
+    set root_uuid (blkid -s UUID -o value $root_partiton)
+    set boot_uuid (blkid -s UUID -o value $boot_partiton)
+
+    if not test -e /boot/EFI/limine/BOOTX64.EFI
+        mkdir -p /boot/EFI/limine
+        cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine
+        efibootmgr --create --disk $disk --part $part --label "Limine" \
+            --loader '\EFI\limine\BOOTX64.EFI' --unicode
+    end
+
+    echo "modules: nvidia
+    compression: zstd
+    extra_files: nvim
+    vconsole: true
+    universal: false" >> /etc/booster.yaml
+    set kernels /usr/lib/modules/*
+
+    echo "# Arch Linux config end here" >> /boot/limine/limine.conf
+    echo "/Arch linux" >> /boot/limine/limine.conf
+    for kernel in $kernels
+        if not test -d "$kernel"; or test basename ("$kernel") = "modules"
+            continue
+        end
+
+        if not pacman -Qqo "$kernel/pkgbase" > /dev/null 2>&1
+            continue
+        end
+
+        set pkgbase (cat "$kernel/pkgbase")
+        set kernel_version (string replace "/usr/lib/modules/" "" "$kernel")
+        booster build --force --kernel-version $kernel_version "/boot/booster-$pkgbase.img" &
+        install -Dm644 "$kernel/vmlinuz" "/boot/vmlinuz-$pkgbase"
+
+
+        echo "
+            //$kernel_version
+            protocol: linux
+            path: boot():/vmlinuz-$pkgbase
+            cmdline: root=UUID($root_uuid) rw
+            module_path: boot():/booster-$pkgbase.img
+        " >> /boot/limine/limine.conf
+    end
+    wait
+    echo "# Arch Linux config end here" >> /boot/limine/limine.conf
 end
 
 function setup_pacman
@@ -97,27 +139,7 @@ function setup_user -a username
 
     su $username -c "paru -Syu --noconfirm $packages"
 
-
-    # replace with chezmoi
-    set target /home/$username/.local/share
-    if not test -d $target; mkdir -p $target; end
-
-    set src (realpath ./files/home)
-    # Ensure destination exists
-    if not test -d $target/configs; mkdir -p $target/configs; end
-
-    # Copy all contents (including dotfiles) from source into destination
-    cp -a $src/. $target/configs
-
-    # Make sure the default user owns the files and has full access
-    chown -R $username:$username $target/configs
-    chmod -R u+rwX $target/configs
-
-    set config /home/$username/.config
-    for entry in (ls $target/configs)
-        echo Creating $entry
-        ln -s (realpath $entry) $config/$entry
-    end
+    chezmoi init --apply $username # User github username
 end
 
 
