@@ -1,0 +1,1 @@
+archiso/airootfs/root/install_scripts.fish

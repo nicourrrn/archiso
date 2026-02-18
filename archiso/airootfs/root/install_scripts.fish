@@ -60,13 +60,16 @@ function setup_service
     systemctl enable fail2ban.service
 end
 
-function setup_kernel -a disk part
+function setup_kernel -a
 
     set root_partiton (findmnt -nnro SOURCE /)
     set boot_partiton (findmnt -nnro SOURCE /boot)
 
     set root_uuid (blkid -s UUID -o value $root_partiton)
     set boot_uuid (blkid -s UUID -o value $boot_partiton)
+
+    set part (echo $boot_partiton | sed -E 's/.*[^0-9]([0-9]+)$/\1/')
+    set disk (echo $boot_partiton | sed -E 's/(p?[0-9]+)$//')
 
     if not test -e /boot/EFI/limine/BOOTX64.EFI
         mkdir -p /boot/EFI/limine
@@ -80,9 +83,15 @@ function setup_kernel -a disk part
     extra_files: nvim
     vconsole: true
     universal: false" >> /etc/booster.yaml
+
+    set arch_limine_start "#arch_limine_start"
+    set arch_limine_end "#arch_limine_end"
+
+    sed -i "/$arch_limine_start/,/$arch_limine_end/d" /boot/limine/limine.conf
+
     set kernels /usr/lib/modules/*
 
-    echo "# Arch Linux config end here" >> /boot/limine/limine.conf
+    echo $arch_limine_start >> /boot/limine/limine.conf
     echo "/Arch linux" >> /boot/limine/limine.conf
     for kernel in $kernels
         if not test -d "$kernel"; or test basename ("$kernel") = "modules"
@@ -93,14 +102,13 @@ function setup_kernel -a disk part
             continue
         end
 
-        set pkgbase (cat "$kernel/pkgbase")
+        set pkgbase (bat "$kernel/pkgbase")
         set kernel_version (string replace "/usr/lib/modules/" "" "$kernel")
         booster build --force --kernel-version $kernel_version "/boot/booster-$pkgbase.img" &
         install -Dm644 "$kernel/vmlinuz" "/boot/vmlinuz-$pkgbase"
 
-
         echo "
-            //$kernel_version
+            // $kernel_version
             protocol: linux
             path: boot():/vmlinuz-$pkgbase
             cmdline: root=UUID($root_uuid) rw
@@ -108,7 +116,7 @@ function setup_kernel -a disk part
         " >> /boot/limine/limine.conf
     end
     wait
-    echo "# Arch Linux config end here" >> /boot/limine/limine.conf
+    echo $arch_limine_end >> /boot/limine/limine.conf
 end
 
 function setup_pacman
