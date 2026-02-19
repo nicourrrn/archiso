@@ -156,15 +156,16 @@ function setup_pacman
     pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
     pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
 
-    sed -i "s/^#ParallelDownloads/ParallelDownloads/" /etc/pacman.conf
-    sed -i "s/^#Color/Color/" /etc/pacman.conf
-    sed -i "/^Color/a ILoveCandy" /etc/pacman.conf
+    sed -i "s/^#ParallelDownloads/ParallelDownloads/" pacman.conf
+    sed -i "s/^#Color/Color/" pacman.conf
+    sed -i "/^Color/a ILoveCandy" pacman.conf
 
-    sed -i "/\[*\]/,/Include/ s/^#//" /etc/pacman.conf
-    sed -i "/\[custom\]/,/Server/d" /etc/pacman.conf
-    sed -i "/\[chaotic-aur\]/,/Include/d" /etc/pacman.conf
+    for repo in "testing" "community-testing" "multilib" "multilib-testing"
+        sed -i "/\[$repo\]/,/Include/ s/^#//" pacman.conf
+    end
 
-    printf "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n" >> /etc/pacman.conf
+    sed -i "/\[chaotic-aur\]/,/Include/d" pacman.conf
+    printf "\n[chaotic-aur]\nInclude = pacman.d/chaotic-mirrorlist\n" >> pacman.conf
 
     pacman -Sy --noconfirm paru
 end
@@ -190,7 +191,8 @@ end
 # Util scripts
 
 function update_script
-    curl -f install_scripts.fish https://raw.githubusercontent.com/nicourrrn/archiso/refs/heads/main/archiso/airootfs/root/install_scripts.fish | source
+    curl -o install_scripts.fish https://raw.githubusercontent.com/nicourrrn/archiso/refs/heads/main/archiso/airootfs/root/install_scripts.fish
+    source ./install_scripts.fish
 end
 
 
