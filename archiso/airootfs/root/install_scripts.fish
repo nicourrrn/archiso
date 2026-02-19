@@ -1,11 +1,15 @@
-#! /bin/fish
+#! /usr/bin/fish
 
 ## Instalation part
 set base_packages "base" "base-devel" "booster" "neovim" "iwd" "efibootmgr"  \
     "gvfs" "gvfs-mtp" "xdg-user-dirs" "linux" "linux-firmware" "dhcpcd" "limine" \
     "btrfs-progs" "openssh" "git" "reflector" "amd-ucode" "fish" "ufw" "fail2ban"
 
-function install_arch -a mnt
+function install_arch -d "Main installation script that call all steps"
+    set -l options "r/root"
+
+    argparse $options -- $argv
+
     reflector --verbose --country UA --latest 5 --sort rate --save /etc/pacman.d/mirrorlist
     pacman -Sy
 
@@ -19,11 +23,10 @@ function install_arch -a mnt
     rm $mnt/opt/install_scripts.fish
 end
 
-function setup_mount_point -a root boot
+function setup_partition -d "Setup paritions"
     set -l options "r/root=" "b/boot="
 
     argparse $options -- $argv
-    set -l root $_flag_r
 
     mkfs.btrfs $_flag_r
     mount $_flag_r /mnt
@@ -181,15 +184,25 @@ function setup_user -a username
         chezmoi init --apply $username"
 end
 
-
-function setup_arch
+function setup_arch -d "Main setup at chroot command"
     setup_service
     setup_kernel
     setup_pacman
     setup_user nicourrrn
 end
 
+# Util scripts
+
 function update_script
-    curl --output install_scripts.fish https://raw.githubusercontent.com/nicourrrn/archiso/refs/heads/main/archiso/airootfs/root/install_scripts.fish
-    echo "Run source install_scripts.fish again"
+    curl -f install_scripts.fish https://raw.githubusercontent.com/nicourrrn/archiso/refs/heads/main/archiso/airootfs/root/install_scripts.fish | source
+end
+
+
+argparse "h/help" -- $argv
+if set -lq _flag_h
+    echo "Run install_arch -r /mnt for install arch"
+    echo "Run setup_partition -r /dev/sda2 [-b /dev/sda1] for make btrfs root and fat32 boot"
+    echo "Run setup_arch use in arch-chroot envoroment"
+else
+    echo "Run install_arch -r /mnt"
 end
