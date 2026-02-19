@@ -5,11 +5,7 @@ set base_packages "base" "base-devel" "booster" "neovim" "iwd" "efibootmgr"  \
     "gvfs" "gvfs-mtp" "xdg-user-dirs" "linux" "linux-firmware" "dhcpcd" "limine" \
     "btrfs-progs" "openssh" "git" "reflector" "amd-ucode" "fish" "ufw" "fail2ban"
 
-function install_arch -d "Main installation script that call all steps"
-    set -l options "r/root"
-
-    argparse $options -- $argv
-
+function install_arch -d "Main installation script that call all steps" -a mnt
     reflector --verbose --country UA --latest 5 --sort rate --save /etc/pacman.d/mirrorlist
     pacman -Sy
 
@@ -160,13 +156,13 @@ function setup_pacman
     pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
     pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
 
-    sed -i "s/^#ParallelDownloads/ParallelDownloads" /etc/pacman.conf
+    sed -i "s/^#ParallelDownloads/ParallelDownloads/" /etc/pacman.conf
     sed -i "s/^#Color/Color/" /etc/pacman.conf
     sed -i "/^Color/a ILoveCandy" /etc/pacman.conf
 
     sed -i "/\[*\]/,/Include/ s/^#//" /etc/pacman.conf
     sed -i "/\[custom\]/,/Server/d" /etc/pacman.conf
-    sed -i "/[chaotic-aur]/,/Include/d" /etc/pacman.conf
+    sed -i "/\[chaotic-aur\]/,/Include/d" /etc/pacman.conf
 
     printf "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n" >> /etc/pacman.conf
 
