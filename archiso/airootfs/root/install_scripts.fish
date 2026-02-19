@@ -2,7 +2,7 @@
 
 ## Instalation part
 set base_packages "base" "base-devel" "booster" "neovim" "iwd" "efibootmgr"  \
-    "gvfs" "gvfs-mtp" "xdg-user-dirs" "linux" "linux-firmware" "dhcpcd" "limine" \
+    "gvfs" "gvfs-mtp" "xdg-user-dirs" "linux" "linux-firmware" "linux-headers" "dhcpcd" "limine" \
     "btrfs-progs" "openssh" "git" "reflector" "amd-ucode" "fish" "ufw" "fail2ban"
 
 function install_arch -d "Main installation script that call all steps" -a mnt
@@ -51,13 +51,15 @@ set packages "zed" "fish" "zen-browser" "zellij" "alacritty" "btop" "bat" "ripgr
     "blueman" "nvidia-dkms" "tree" "zip" "wl-clipboard" "ripgrep" "rar" "qemu" \
     "playerctl" "grip" "slurp" "dust" "docker" "starship" "git" \
     "spicetify-cli" "spicetify-marketplace-bin" \
-    'caelestia-cli' 'caelestia-shell' \
+    # 'caelestia-cli' 'caelestia-shell' \
     'hyprland' 'xdg-desktop-portal-hyprland' 'xdg-desktop-portal-gtk' 'hyprpicker' \
     'cliphist' 'inotify-tools' 'app2unit' 'wireplumber' 'trash-cli' \
     'eza' 'fastfetch' 'jq' 'adw-gtk-theme' "noto-fonts-emoji" \
     'papirus-icon-theme' 'qt5ct-kde' 'qt6ct-kde' 'ttf-jetbrains-mono-nerd' \
     "uwsm" "zoxide" "ttf-font-awesome" "pipewire-pulse" "pipewire-alsa" \
-    "ttf-fira-code" "snapper" "btrfs-assistant" "nvidia-dkms"  "chezmoi"
+    "ttf-fira-code" "snapper" "btrfs-assistant" "nvidia-dkms"  "chezmoi" \
+    "vim" "qemu-desktop" "nvidia-utils" "gnu-free-fonts" "pipewire-jack" \
+    "lib32-nvidia-utils" "qt6-multimedia-ffmpeg"
     # "hyprpolkitagent"
 
 
@@ -163,7 +165,7 @@ function setup_pacman
     end
 
     sed -i "/\[chaotic-aur\]/,/Include/d" /etc/pacman.conf
-    printf "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n" >> pacman.conf
+    printf "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n" >> /etc/pacman.conf
 
     pacman -Sy --noconfirm paru
 end
@@ -171,10 +173,11 @@ end
 function setup_user -a username
     useradd -m -G wheel,power,audio,video,optical,storage,network -s /bin/fish $username
     echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/wheel
+
     passwd $username
 
-    su $username -c "paru -Syu --noconfirm $packages && \
-        chezmoi init --apply $username"
+    sudo -u $username  paru -Syu --noconfirm $packages
+    sudo -u $username  chezmoi init --apply $username
 end
 
 function setup_arch -d "Main setup at chroot command"
