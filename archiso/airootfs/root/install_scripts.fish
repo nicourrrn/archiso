@@ -188,3 +188,7 @@ function setup_arch
     setup_pacman
     setup_user nicourrrn
 end
+
+function update_script
+    curl --output install_scripts.fish https://raw.githubusercontent.com/nicourrrn/archiso/refs/heads/main/archiso/airootfs/root/install_scripts.fish
+end
