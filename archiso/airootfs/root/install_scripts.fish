@@ -3,21 +3,47 @@
 ## Instalation part
 set base_packages "base" "base-devel" "booster" "neovim" "iwd" "efibootmgr"  \
     "gvfs" "gvfs-mtp" "xdg-user-dirs" "linux" "linux-firmware" "dhcpcd" "limine" \
-    "btrfs-progs" "openssh" "git" "reflector" "amd-ucode" "fish"
-
-set kernels "linux"
+    "btrfs-progs" "openssh" "git" "reflector" "amd-ucode" "fish" "ufw" "fail2ban"
 
 function install_arch -a mnt
     reflector --verbose --country UA --latest 5 --sort rate --save /etc/pacman.d/mirrorlist
     pacman -Sy
 
     pacstrap $mnt $base_packages
+
+    printf "Generate fstab"
     genfstab -U $mnt >> $mnt/etc/fstab
 
-    mount --bind ./ $mnt/opt/install_scripts
-    echo "source /opt/install_scripts/install_scripts.fish && setup_arch" |
-        arch-chroot $mnt fish -
-    umount $mnt/opt/install_scripts
+    cp ./install_scripts.fish $mnt/opt/
+    arch-chroot $mnt fish -c "source /opt/install_scripts.fish && setup_arch"
+    rm $mnt/opt/install_scripts.fish
+end
+
+function setup_mount_point -a root boot
+    set -l options "r/root=" "b/boot="
+
+    argparse $options -- $argv
+    set -l root $_flag_r
+
+    mkfs.btrfs $_flag_r
+    mount $_flag_r /mnt
+
+    btrfs subvolume create /mnt/@
+    btrfs subvolume create /mnt/@home
+    btrfs subvolume create /mnt/@snap
+    umount /mnt
+
+    mount -o compress=zstd,subvol=@ $_flag_r /mnt
+    mkdir -p /mnt/{home,boot,snap}
+    mount -o compress=zstd,subvol=@home $_flag_r /mnt/home
+    mount -o compress=zstd,subvol=@snap $_flag_r /mnt/snap
+
+    if set -ql $_flag_b
+        mkfs.fat -F 32 $_flag_b
+        mount $_flag_b /mnt/boot
+    else
+        echo "Mount boot fs to mount point /mnt"
+    end
 end
 
 ## Setting part
@@ -33,7 +59,7 @@ set packages "zed" "fish" "zen-browser" "zellij" "alacritty" "btop" "bat" "ripgr
     'eza' 'fastfetch' 'jq' 'adw-gtk-theme' "noto-fonts-emoji" \
     'papirus-icon-theme' 'qt5ct-kde' 'qt6ct-kde' 'ttf-jetbrains-mono-nerd' \
     "uwsm" "zoxide" "ttf-font-awesome" "pipewire-pulse" "pipewire-alsa" \
-    "ttf-fira-code" "snapper" "btrfs-assistant" "nvidia-dkms" "ufw" "fail2ban" "chezmoi"
+    "ttf-fira-code" "snapper" "btrfs-assistant" "nvidia-dkms"  "chezmoi"
     # "hyprpolkitagent"
 
 
@@ -47,12 +73,13 @@ function setup_service
     echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
     timedatectl set-timezone Europe/Kyiv
-    timedatectl set-ntt true
+    timedatectl set-ntp true
 
     systemctl enable fstrim.timer
-    systemctl enable --now systemd-resolved.service
-    rm -rf /etc/resolv.conf
-    ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+
+    systemctl enable systemd-resolved.service
+    # rm -rf /etc/resolv.conf
+    # ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
     ufw enable
     systemctl enable ufw.service
@@ -60,8 +87,7 @@ function setup_service
     systemctl enable fail2ban.service
 end
 
-function setup_kernel -a
-
+function setup_kernel
     set root_partiton (findmnt -nnro SOURCE /)
     set boot_partiton (findmnt -nnro SOURCE /boot)
 
@@ -78,11 +104,16 @@ function setup_kernel -a
             --loader '\EFI\limine\BOOTX64.EFI' --unicode
     end
 
+    if not test -e /boot/limine/limine.conf
+        mkdir /boot/limine
+        echo "timeout 5" > /boot/limine/limine.conf
+    end
+
     echo "modules: nvidia
     compression: zstd
     extra_files: nvim
     vconsole: true
-    universal: false" >> /etc/booster.yaml
+    universal: false" > /etc/booster.yaml
 
     set arch_limine_start "#arch_limine_start"
     set arch_limine_end "#arch_limine_end"
@@ -102,19 +133,19 @@ function setup_kernel -a
             continue
         end
 
-        set pkgbase (bat "$kernel/pkgbase")
+        set pkgbase (cat "$kernel/pkgbase")
         set kernel_version (string replace "/usr/lib/modules/" "" "$kernel")
         booster build --force --kernel-version $kernel_version "/boot/booster-$pkgbase.img" &
         install -Dm644 "$kernel/vmlinuz" "/boot/vmlinuz-$pkgbase"
 
         echo "
-            // $kernel_version
-            protocol: linux
-            path: boot():/vmlinuz-$pkgbase
-            cmdline: root=UUID($root_uuid) rw
-            module_path: boot():/booster-$pkgbase.img
-        " >> /boot/limine/limine.conf
+    // $kernel_version
+    protocol: linux
+    path: boot():/vmlinuz-$pkgbase
+    cmdline: root=UUID=$root_uuid rw
+    module_path: boot():/booster-$pkgbase.img" >> /boot/limine/limine.conf
     end
+
     wait
     echo $arch_limine_end >> /boot/limine/limine.conf
 end
@@ -123,19 +154,20 @@ function setup_pacman
     pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
     pacman-key --lsign-key 3056513887B78AEB
 
-    pacman -U 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
-    pacman -U 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
+    pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
+    pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
 
     sed -i "s/^#Color/Color/" /etc/pacman.conf
-    sed -i "s/^#ParallelDownloads = /ParallelDownloads" /etc/pacman.conf
     sed -i "/^Color/a ILoveCandy" /etc/pacman.conf
-    sed -i '/\[core-testing\]/,/Include/ s/^#//' /mnt/etc/pacman.conf
-    sed -i '/\[extra-testing\]/,/Include/ s/^#//' /mnt/etc/pacman.conf
-    sed -i '/\[multilib\]/,/Include/ s/^#//' /mnt/etc/pacman.conf
-    sed -i '/\[multilib-testing\]/,/Include/ s/^#//' /mnt/etc/pacman.conf
-    printf "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n" >> /mnt/etc/pacman.conf
+    sed -i "s/^#ParallelDownloads = /ParallelDownloads" /etc/pacman.conf
+    sed -i "/[core-testing]/,/Include/ s/^#//" /etc/pacman.conf
+    sed -i "/[extra-testing]/,/Include/ s/^#//" /etc/pacman.conf
+    sed -i "/[multilib]/,/Include/ s/^#//" /etc/pacman.conf
+    sed -i "/[multilib-testing]/,/Include/ s/^#//" /etc/pacman.conf
+    sed -i "/[chaotic-aur]/,/Inclide = /etc/pacman.d/chaotic-mirrorlist/d" /etc/pacman.conf
+    printf "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n" >> /etc/pacman.conf
 
-    pacman -S paru --noconfirm`
+    pacman -Sy --noconfirm paru
 end
 
 function setup_user -a username
@@ -145,9 +177,8 @@ function setup_user -a username
     echo "Set password"
     passwd $username
 
-    su $username -c "paru -Syu --noconfirm $packages"
-
-    chezmoi init --apply $username # User github username
+    su $username -c "paru -Syu --noconfirm $packages && \
+        chezmoi init --apply $username"
 end
 
 
