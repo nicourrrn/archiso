@@ -20,9 +20,8 @@ function install_arch -d "Main installation script that call all steps" -a mnt
 end
 
 function setup_partition -d "Setup paritions"
-    set -l options "r/root=" "b/boot="
-
-    argparse $options -- $argv
+    argparse "r/root=" "b/boot=" -- $argv
+    or return
 
     mkfs.btrfs $_flag_r
     mount $_flag_r /mnt
@@ -37,7 +36,7 @@ function setup_partition -d "Setup paritions"
     mount -o compress=zstd,subvol=@home $_flag_r /mnt/home
     mount -o compress=zstd,subvol=@snap $_flag_r /mnt/snap
 
-    if set -ql $_flag_b
+    if set -ql _flag_b
         mkfs.fat -F 32 $_flag_b
         mount $_flag_b /mnt/boot
     else
@@ -87,8 +86,8 @@ function setup_service
 end
 
 function setup_kernel
-    set root_partiton (findmnt -nnro SOURCE /)
-    set boot_partiton (findmnt -nnro SOURCE /boot)
+    set root_partiton (df /     --output=source | tail -1)
+    set boot_partiton (df /boot --output=source | tail -1)
 
     set root_uuid (blkid -s UUID -o value $root_partiton)
     set boot_uuid (blkid -s UUID -o value $boot_partiton)
@@ -105,14 +104,14 @@ function setup_kernel
 
     if not test -e /boot/limine/limine.conf
         mkdir /boot/limine
-        echo "timeout 5" > /boot/limine/limine.conf
+        printf "timeout 5\n" > /boot/limine/limine.conf
     end
 
     echo "modules: nvidia
-    compression: zstd
-    extra_files: nvim
-    vconsole: true
-    universal: false" > /etc/booster.yaml
+compression: zstd
+extra_files: nvim
+vconsole: true
+universal: false" > /etc/booster.yaml
 
     set arch_limine_start "#arch_limine_start"
     set arch_limine_end "#arch_limine_end"
@@ -137,11 +136,10 @@ function setup_kernel
         booster build --force --kernel-version $kernel_version "/boot/booster-$pkgbase.img" &
         install -Dm644 "$kernel/vmlinuz" "/boot/vmlinuz-$pkgbase"
 
-        echo "
-    // $kernel_version
+        echo "  // $kernel_version
     protocol: linux
     path: boot():/vmlinuz-$pkgbase
-    cmdline: root=UUID=$root_uuid rw
+    cmdline: root=UUID=$root_uuid rootflags=subvol=@ rw
     module_path: boot():/booster-$pkgbase.img" >> /boot/limine/limine.conf
     end
 
@@ -156,16 +154,16 @@ function setup_pacman
     pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
     pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
 
-    sed -i "s/^#ParallelDownloads/ParallelDownloads/" pacman.conf
-    sed -i "s/^#Color/Color/" pacman.conf
-    sed -i "/^Color/a ILoveCandy" pacman.conf
+    sed -i "s/^#ParallelDownloads/ParallelDownloads/" /etc/pacman.conf
+    sed -i "s/^#Color/Color/" /etc/pacman.conf
+    sed -i "/^Color/a ILoveCandy" /etc/pacman.conf
 
-    for repo in "testing" "community-testing" "multilib" "multilib-testing"
-        sed -i "/\[$repo\]/,/Include/ s/^#//" pacman.conf
+    for repo in "core-testing" "extra-testing" "multilib" "multilib-testing"
+        sed -i "/\[$repo\]/,/Include/ s/^#//" /etc/pacman.conf
     end
 
-    sed -i "/\[chaotic-aur\]/,/Include/d" pacman.conf
-    printf "\n[chaotic-aur]\nInclude = pacman.d/chaotic-mirrorlist\n" >> pacman.conf
+    sed -i "/\[chaotic-aur\]/,/Include/d" /etc/pacman.conf
+    printf "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist\n" >> pacman.conf
 
     pacman -Sy --noconfirm paru
 end
@@ -173,8 +171,6 @@ end
 function setup_user -a username
     useradd -m -G wheel,power,audio,video,optical,storage,network -s /bin/fish $username
     echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/wheel
-
-    echo "Set password"
     passwd $username
 
     su $username -c "paru -Syu --noconfirm $packages && \
