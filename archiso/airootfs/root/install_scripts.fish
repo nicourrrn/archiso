@@ -76,6 +76,8 @@ function setup_service
     timedatectl set-ntp true
 
     systemctl enable fstrim.timer
+    systemctl enable iwd.service
+    systemctl enable dhclient.service
 
     # systemctl enable systemd-resolved.service
     # rm -rf /etc/resolv.conf
