@@ -48,7 +48,7 @@ end
 set packages "zed" "fish" "zen-browser-bin" "zellij" "alacritty" "btop" "bat" "ripgrep" \
     "thunar" "keepassxc" "vesktop" "steam" "bun" "uv" "rustup" "go" "httpie" "flyctl-bin" \
     "godot" "typst" "cava" "easyeffects" "gimp" "vlc" "just" "xxd" "pipewire" \
-    "blueman" "nvidia-dkms" "tree" "zip" "wl-clipboard" "ripgrep" "qemu" \
+    "blueman" "nvidia-dkms" "tree" "zip" "unzip" "wl-clipboard" "ripgrep" "qemu" \
     "playerctl" "slurp" "dust" "docker" "starship" "git" \
     "spicetify-cli" "spicetify-marketplace-bin" \
     'hyprland' 'xdg-desktop-portal-hyprland' 'xdg-desktop-portal-gtk' 'hyprpicker' \
@@ -59,7 +59,7 @@ set packages "zed" "fish" "zen-browser-bin" "zellij" "alacritty" "btop" "bat" "r
     "ttf-fira-code" "snapper" "btrfs-assistant" "nvidia-dkms"  "chezmoi" \
     "vim" "qemu-desktop" "nvidia-utils" "gnu-free-fonts" "pipewire-jack" \
     "lib32-nvidia-utils" "qt6-multimedia-ffmpeg" "hyprpolkitagent" "quickshell" \
-    "hyprlauncher" \
+    "hyprlauncher" "spotify" "telegram-desktop" "ollama-cuda" \
     #  'caelestia-cli' 'caelestia-shell' "rar" 'app2unit' 'qt5ct-kde' 'qt6ct-kde' "grip"
 
 
@@ -186,6 +186,14 @@ function setup_user -a username
 end
 
 function setup_arch -d "Main setup at chroot command"
+    echo "          _                                     ";
+    echo "   ____  (_)________  __  _____________________ ";
+    echo "  / __ \\/ / ___/ __ \\/ / / / ___/ ___/ ___/ __ \\";
+    echo " / / / / / /__/ /_/ / /_/ / /  / /  / /  / / / /";
+    echo "/_/ /_/_/\\___/\\____/\\__,_/_/  /_/  /_/  /_/ /_/ ";
+    echo "                                                ";
+    fastfetch
+
     setup_service
     setup_kernel
     setup_pacman
@@ -201,6 +209,13 @@ function update_script
     source ./install_scripts.fish
 end
 
+echo "          _                                     ";
+echo "   ____  (_)________  __  _____________________ ";
+echo "  / __ \\/ / ___/ __ \\/ / / / ___/ ___/ ___/ __ \\";
+echo " / / / / / /__/ /_/ / /_/ / /  / /  / /  / / / /";
+echo "/_/ /_/_/\\___/\\____/\\__,_/_/  /_/  /_/  /_/ /_/ ";
+echo "                                                ";
+fastfetch
 
 argparse "h/help" -- $argv
 if set -lq _flag_h
